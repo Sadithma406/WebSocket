@@ -1,76 +1,129 @@
 <html>
+
 <head>
   <title>WebSocket Client</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    #messages {
-      height: 300px;
-      border: 1px solid #ccc;
-      overflow-y: auto;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-    .message { margin: 5px 0; }
-  </style>
+  <link rel="stylesheet" href="user.css">
 </head>
+
 <body>
-  <h1>WebSocket Client</h1>
-  <div id="status">Connecting to server...</div>
-  <div id="messages"></div>
-  <div>
-    <input type="text" id="messageInput" placeholder="Type your message">
-    <button onclick="sendMessage()">Send</button>
+  <div class="phone-shell">
+    <div class="phone-header">
+      <svg height="100" width="100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="35" cy="35" r="10" fill="red" />
+      </svg>
+    </div>
+    <!-- Messages -->
+    <div id="chat-messages"></div>
+
+    <!-- Input Bar -->
+    <div id="input-area">
+      <div id="user-text">
+        <button class="mic-btn" id="mic-button" title="Voice input">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1.5 4v6a1.5 1.5 0 0 0 3 0V5a1.5 1.5 0 0 0-3 0zM6.5 10a.75.75 0 0 1 .75.75 4.75 4.75 0 0 0 9.5 0 .75.75 0 0 1 1.5 0 6.25 6.25 0 0 1-5.5 6.21V19h2a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5h2v-2.04A6.25 6.25 0 0 1 5.75 10.75.75.75 0 0 1 6.5 10z" />
+          </svg>
+        </button>
+        <input type="text" id="user-input" placeholder="Type a message…" autocomplete="off" />
+      </div>
+      <button id="send-button" title="Send message">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M3.4 2.1 22 11.3a.8.8 0 0 1 0 1.4L3.4 21.9A.8.8 0 0 1 2.3 21l1.9-8.25L2.3 3A.8.8 0 0 1 3.4 2.1zm1.7 2.5 1.5 6.65h7.6a.75.75 0 0 1 0 1.5H6.6L5.1 19.4 20.1 12 5.1 4.6z" />
+        </svg>
+      </button>
+    </div>
+
+  </div>
+  <div id="name-area" style="display: none;">
+    <h2 id="name-title">Welcome</h2>
+    <p id="name-subtitle">Enter your name to join the chat</p>
+    <input type="text" id="name-input" placeholder="Your name" autocomplete="off" />
+    <button id="name-button">Join Chat</button>
   </div>
 
   <script>
-    const status = document.getElementById('status');
-    const messages = document.getElementById('messages');
-    const messageInput = document.getElementById('messageInput');
+    const status = document.querySelector('circle');
+    const userInput = document.getElementById('user-input');
+    const sendButton = document.getElementById('send-button');
+    const messages = document.getElementById('chat-messages');
+    const nameArea = document.getElementById('name-area');
+    const phoneArea = document.querySelector('.phone-shell');
+    const nameInput = document.getElementById('name-input');
+    const nameButton = document.getElementById('name-button');
 
     // Connect to the WebSocket server
-    const ws = new WebSocket('ws://localhost:8080');
-
+    let ws = null;
+    let userId = null;
     // Connection opened
-    ws.onopen = () => {
-      status.textContent = 'Connected to server';
-      status.style.color = 'green';
-    };
+    nameArea.style.display = 'block';
+    phoneArea.style.display = 'none';
 
-    // Listen for messages
-    ws.onmessage = (event) => {
-      const message = document.createElement('div');
-      message.className = 'message';
-      message.textContent = event.data;
-      messages.appendChild(message);
-      messages.scrollTop = messages.scrollHeight;
-    };
+    nameButton.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) return;
+      ws = new WebSocket('ws://localhost:8080?name=' + encodeURIComponent(name));
 
-    // Handle connection close
-    ws.onclose = () => {
-      status.textContent = 'Disconnected from server';
-      status.style.color = 'red';
-    };
+      ws.onopen = () => {
+        nameArea.style.display = 'none';
+        phoneArea.style.display = 'flex';
+        status.style.fill = 'green';
+      };
 
-    // Function to send a message
+      ws.onclose = () => {
+        status.style.fill = 'red';
+      };
+
+      ws.onmessage = (event) => {
+        const eventData = JSON.parse(event.data);
+        if (eventData.type === 'init') {
+          userId = eventData.data.id;
+          return;
+        }
+        if (eventData.type === 'history') {
+          eventData.data.forEach(entry => showMessages(entry.user.id, entry.user.name, entry.message));
+          return;
+        }
+        showMessages(eventData.data.userId, eventData.data.senderName, eventData.data.message);
+      };
+    });
+
+    function showMessages(senderId, senderName, message) {
+      const isOwn = (senderId === userId);
+      const messageHolder = document.createElement('div');
+      if (isOwn) {
+        messageHolder.className = 'message user';
+      }
+      else {
+        messageHolder.className = 'message bot';
+        const senderLabel = document.createElement('span');
+        senderLabel.className = 'sender-name';
+        senderLabel.textContent = senderName;
+        messageHolder.appendChild(senderLabel);
+      }
+      const messageContent = document.createElement('div');
+      messageContent.className = 'bubble';
+      messageContent.textContent = message;
+      messageHolder.appendChild(messageContent);
+      messages.appendChild(messageHolder);
+      requestAnimationFrame(() => {
+        messages.scrollTop = messages.scrollHeight;
+      });
+    }
+
     function sendMessage() {
-      const message = messageInput.value.trim();
+      const message = userInput.value.trim();
       if (message) {
         ws.send(message);
-        messageInput.value = '';
+        userInput.value = '';
       }
     }
 
     // Send message on Enter key
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        sendMessage();
-      }
+    sendButton.addEventListener('click', (e) => {
+      sendMessage();
     });
   </script>
 </body>
+
 </html>
