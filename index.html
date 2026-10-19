@@ -73,7 +73,7 @@
       ws.onclose = () => {
         status.style.fill = 'red';
       };
-
+      let previousId = null
       ws.onmessage = (event) => {
         const eventData = JSON.parse(event.data);
         if (eventData.type === 'init') {
@@ -81,31 +81,69 @@
           return;
         }
         if (eventData.type === 'history') {
-          eventData.data.forEach(entry => showMessages(entry.user.id, entry.user.name, entry.message));
+
+          eventData.data.forEach(entry => {
+            const isSameUser = previousId === entry.user.id
+            showMessages(entry.user.id, entry.user.name, entry.message, isSameUser);
+            previousId = entry.user.id;
+          });
           return;
         }
-        showMessages(eventData.data.userId, eventData.data.senderName, eventData.data.message);
+        const isSameUser = previousId === eventData.data.userId
+        showMessages(eventData.data.userId, eventData.data.senderName, eventData.data.message, isSameUser);
+        previousId = eventData.data.userId;
       };
     });
 
-    function showMessages(senderId, senderName, message) {
+    function showMessages(senderId, senderName, message, isSameUser) {
       const isOwn = (senderId === userId);
       const messageHolder = document.createElement('div');
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+
+      const actualMsg = document.createElement('div');
+      actualMsg.className = 'message-text';
+      actualMsg.textContent = message;
+
       if (isOwn) {
-        messageHolder.className = 'message user';
+        messageHolder.className = 'message user'
+        bubble.appendChild(actualMsg);
+        messageHolder.appendChild(bubble);
+        if(isSameUser) {
+          messageHolder.className = 'message user consecutive'
+        }
       }
       else {
-        messageHolder.className = 'message bot';
-        const senderLabel = document.createElement('span');
-        senderLabel.className = 'sender-name';
-        senderLabel.textContent = senderName;
-        messageHolder.appendChild(senderLabel);
+        if (!isSameUser) {
+          messageHolder.className = 'message bot'
+          const senderImg = document.createElement('img');
+          senderImg.className = 'sender-avatar';
+          senderImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName || 'User')}&background=3b82f6&color=fff&size=128`;
+
+          const senderLabel = document.createElement('div');
+          senderLabel.className = 'sender-name';
+          senderLabel.textContent = senderName;
+
+          bubble.appendChild(senderLabel);
+          bubble.appendChild(actualMsg);
+
+          messageHolder.appendChild(senderImg);
+          messageHolder.appendChild(bubble);
+        }
+        else {
+          messageHolder.className = 'message bot consecutive'
+          const spacer = document.createElement('div');
+          spacer.className = 'avatar-spacer';
+
+          bubble.appendChild(actualMsg);
+
+          messageHolder.appendChild(spacer);
+          messageHolder.appendChild(bubble);
+        }
       }
-      const messageContent = document.createElement('div');
-      messageContent.className = 'bubble';
-      messageContent.textContent = message;
-      messageHolder.appendChild(messageContent);
       messages.appendChild(messageHolder);
+
       requestAnimationFrame(() => {
         messages.scrollTop = messages.scrollHeight;
       });
@@ -119,9 +157,15 @@
       }
     }
 
-    // Send message on Enter key
+    // Send message
     sendButton.addEventListener('click', (e) => {
       sendMessage();
+    });
+    //when user presses enter key send the message
+    userInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
     });
   </script>
 </body>
