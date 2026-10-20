@@ -1,7 +1,15 @@
+const express = require('express');
+const { createServer } = require('http');
+const crypto = require('crypto');
 const webSocket = require('ws');
-const wss = new webSocket.Server({ port: 8080 });
-console.log("Web socket server started on ws://localhost:8080");
 
+const app = express();
+const port = 8080;
+
+const server = createServer(app);
+app.use(express.static('public'));
+
+const wss = new webSocket.Server({ server });
 const history = [];
 wss.on('connection', (ws, req) => {
   //let the user enter the name and store it in the ws object
@@ -30,3 +38,7 @@ wss.on('connection', (ws, req) => {
     console.log("Client disconnected");
   });
 })
+
+server.listen(port, () => {
+  console.log(`HTTP server started on http://localhost:${port}`);
+});
